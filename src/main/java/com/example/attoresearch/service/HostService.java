@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class HostService {
@@ -51,19 +52,12 @@ public class HostService {
         if(hosts.isEmpty()) {
             return ResponseDTO.ERROR("호스트가 존재하지 않습니다.");
         }
-        List<HostResponse> hostResponses = new ArrayList<>();
+        List<HostResponse> hostResponses = hosts.stream()
+                .map(host ->
+                    hostsResponse(host)
+                )
+                .collect(Collectors.toList());
 
-        for (Host host : hosts) {
-            hostResponses.add(
-                    HostResponse.builder()
-                            .name(host.getName())
-                            .ip(host.getIp())
-                            .lastAliveTime(host.getLastAliveTime())
-                            .regDate(host.getRegDate())
-                            .modDate(host.getModDate())
-                            .build()
-            );
-        }
         return ResponseDTO.OK(hostResponses);
     }
 
@@ -82,13 +76,7 @@ public class HostService {
         host.updateNameAndIp(hostRequest.getName(), hostRequest.getIp());
 
         return ResponseDTO.OK(
-                HostResponse.builder()
-                .name(host.getName())
-                .ip(host.getIp())
-                .lastAliveTime(host.getLastAliveTime())
-                .regDate(host.getRegDate())
-                .modDate(host.getModDate())
-                .build()
+                hostsResponse(host)
         );
     }
 
@@ -149,32 +137,47 @@ public class HostService {
     @Transactional
     public ResponseDTO<?> getAliveHosts() {
         List<Host> hosts = hostRepository.findAll();
-        List<HostAliveResponse> aliveResponses = new ArrayList<>();
-        for(Host host : hosts) {
-            HostAliveResponse hostAliveResponse = HostAliveResponse.builder()
-                    .name(host.getName())
-                    .ip(host.getIp())
-                    .lastAliveTime(host.getLastAliveTime())
-                    .build();
-            InetAddress inetAddress = null;
-            try {
-                inetAddress = InetAddress.getByName(host.getIp());
-            } catch (UnknownHostException e) {
-                e.printStackTrace();
-            }
-            try {
-                if (inetAddress.isReachable(10)) {
-                    host.updateLastAliveTime(LocalDateTime.now());
-                    hostAliveResponse.setStatus("Reachable");
-                } else {
-                    hostAliveResponse.setStatus("UnReachable");
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                aliveResponses.add(hostAliveResponse);
-            }
-        }
+        List<HostAliveResponse> aliveResponses = hosts.stream()
+                .map(host -> hostsAliveResponse(host))
+                .collect(Collectors.toList());
+
         return ResponseDTO.OK(aliveResponses);
+    }
+
+    private HostResponse hostsResponse(Host host) {
+        HostResponse hostResponse = HostResponse.builder()
+                .name(host.getName())
+                .ip(host.getIp())
+                .lastAliveTime(host.getLastAliveTime())
+                .regDate(host.getRegDate())
+                .modDate(host.getModDate())
+                .build();
+        return hostResponse;
+    }
+
+    private HostAliveResponse hostsAliveResponse(Host host) {
+        HostAliveResponse hostAliveResponse = HostAliveResponse.builder()
+                .name(host.getName())
+                .ip(host.getIp())
+                .lastAliveTime(host.getLastAliveTime())
+                .build();
+        InetAddress inetAddress = null;
+        try {
+            inetAddress = InetAddress.getByName(host.getIp());
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+        }
+        try {
+            if (inetAddress.isReachable(10)) {
+                host.updateLastAliveTime(LocalDateTime.now());
+                hostAliveResponse.setStatus("Reachable");
+            } else {
+                hostAliveResponse.setStatus("UnReachable");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            return hostAliveResponse;
+        }
     }
 }
